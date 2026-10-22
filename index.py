@@ -1,11 +1,9 @@
-# Ask the user for item (no str() needed)
-item = input("Enter the item: ")
+# Ask for the expense details and clean the text right away,
+# so the variables hold clean data (not just the printed output)
+item = input("Enter the item: ").strip().title()
+category = input("Enter the category: ").strip().title()
 
-# Ask the user for category
-category = input("Enter the category: ")
+# input() returns a string, so convert it to a number and round it for money
+amount = round(float(input("Enter the amount: ")), 2)
 
-# Ask the user for the amount
-amount = float(input("Enter the amount: "))
-
-# Using a proper f-string with \n for clean line breaks
-print(f"Item: {item.strip().title()}\nCategory: {category.strip().title()}\nAmount: ${amount:.2f}")
+print(f"Item: {item}\nCategory: {category}\nAmount: ${amount:.2f}")
