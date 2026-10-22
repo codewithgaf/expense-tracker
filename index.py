@@ -8,4 +8,4 @@ category = input("Enter the category: ")
 amount = float(input("Enter the amount: "))
 
 # Using a proper f-string with \n for clean line breaks
-print(f"Item: {item}\nCategory: {category}\nAmount: ${amount:.2f}")
+print(f"Item: {item.strip().title()}\nCategory: {category.strip().title()}\nAmount: ${amount:.2f}")
