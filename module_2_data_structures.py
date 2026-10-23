@@ -1,38 +1,70 @@
-# Expense Tracker - Module 2: lists, dictionaries, sets, and slicing
-
-CURRENCY = "₱"  # change this one line to switch currency symbols
 
 expenses = [
-    {"item": "Notebook", "category": "School", "amount": 45.0},
-    {"item": "Bus fare", "category": "Transport", "amount": 12.0},
-    {"item": "Pizza ", "category": "Food", "amount": 13.0},
-    {"item": "Burger & Fries ", "category": "Food", "amount": 27.022},
-    {"item": "Bus fare ", "category": "Transport", "amount": 15.0},
+    {"item": "Notebook", "category": "School", "amount": 45.00},
+    {"item": "Bus fare", "category": "Transport", "amount": 12.00},
+    {"item": "Pizza", "category": "Food", "amount": 13.00},
+    {"item": "Burger & Fries", "category": "Food", "amount": 27.022},
+    {"item": "Bus fare", "category": "Transport", "amount": 15.00},
 ]
 
-# Clean the data once, up front, so every step below works with clean values
-for expense in expenses:
-    expense["item"] = expense["item"].strip().title()
-    expense["category"] = expense["category"].strip().title()
-    expense["amount"] = round(expense["amount"], 2)
 
-# Unique categories (a set removes duplicates; sorted() gives a stable order)
-unique_categories = sorted({expense["category"] for expense in expenses})
+def display_expenses(expenses):
+    """Display expenses in a formatted table."""
 
-# Running total of spending per category
-totals = {}
-for expense in expenses:
-    category = expense["category"]
-    totals[category] = totals.get(category, 0) + expense["amount"]
+    width = 66
 
-# Display
-print("Categories:", ", ".join(unique_categories))
+    print("\n" + "=" * width)
+    print("                 PERSONAL EXPENSE TRACKER")
+    print("=" * width)
 
-print("\nTotals per category:")
-for category, total in totals.items():
-    print(f"  {category}: {CURRENCY}{total:.2f}")
-print(f"  Overall: {CURRENCY}{sum(totals.values()):.2f}")
+    print(f"{'No.':<5}{'Item':<25}{'Category':<18}{'Amount':>12}")
+    print("-" * width)
 
-print("\nLast 3 expenses:")
-for expense in expenses[-3:]:
-    print(f"  {expense['item']}: {CURRENCY}{expense['amount']:.2f}")
+    for number, expense in enumerate(expenses, start=1):
+        item = expense["item"].strip()
+        category = expense["category"].strip()
+        amount = expense["amount"]
+
+        print(
+            f"{number:<5}"
+            f"{item:<25}"
+            f"{category:<18}"
+            f"₱{amount:>10,.2f}"
+        )
+
+    print("-" * width)
+
+    total = sum(expense["amount"] for expense in expenses)
+    print(f"{'TOTAL EXPENSES:':<48}₱{total:>10,.2f}")
+
+    print("=" * width)
+
+
+def display_category_summary(expenses):
+    """Display the total expenses per category."""
+
+    category_totals = {}
+
+    for expense in expenses:
+        category = expense["category"].strip()
+        amount = expense["amount"]
+
+        category_totals[category] = (
+            category_totals.get(category, 0) + amount
+        )
+
+    print("\n" + "=" * 50)
+    print("                 CATEGORY SUMMARY")
+    print("=" * 50)
+
+    for category, total in sorted(category_totals.items()):
+        print(f"{category:<30} ₱{total:>10,.2f}")
+
+    print("-" * 50)
+    print(f"{'UNIQUE CATEGORIES:':<30} {len(category_totals):>10}")
+    print("=" * 50)
+
+
+# Display reports
+display_expenses(expenses)
+display_category_summary(expenses)
