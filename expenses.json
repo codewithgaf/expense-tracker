@@ -1,0 +1,14 @@
+[
+  {
+    "item": "Pizza",
+    "category": "Food",
+    "amount": 54.21,
+    "size": "Small"
+  },
+  {
+    "item": "Coffee Beans",
+    "category": "Food",
+    "amount": 12.21,
+    "size": "Small"
+  }
+]
