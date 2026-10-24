@@ -63,7 +63,7 @@ This project follows the course modules. Checked items are completed.
 |--------|-------|-----------------|--------|
 | 1 | Python Basics | Input handling, string cleaning, formatted receipt | ✅ Done |
 | 2 | Data Structures | Store many expenses in lists and dictionaries, totals per category | ✅ Done |
-| 3 | Programming Fundamentals | Menu-driven app, functions, `Expense` class, error handling, file saving | ⬜ Planned |
+| 3 | Programming Fundamentals | Menu-driven app, functions, `Expense` class, error handling, file saving | ✅ Planned |
 | 4 | Working with Data | Analysis with Pandas and NumPy, charts with Matplotlib | ⬜ Planned |
 | 5 | APIs and Data Collection | Multi-currency support using a live exchange-rate API | ⬜ Planned |
 
