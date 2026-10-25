@@ -1,7 +1,10 @@
-"""Expense Tracker - Module 4
+"""Expense Tracker - Module 3, Step 5: Objects and Classes
 
-Adds dates to expenses and an "Analyze Spending" option that uses
-Pandas, NumPy and Matplotlib (see analysis.py).
+Two classes do the work:
+    Expense         - ONE validated expense (its data and its own behavior)
+    ExpenseTracker  - the COLLECTION: loading, saving, totals, budget checks
+
+Everything else in this file is input/output: what the user sees and types.
 """
 
 import json
@@ -27,13 +30,13 @@ SMALL_LIMIT = 100      # below this -> Small
 MEDIUM_LIMIT = 1000    # below this -> Medium, otherwise Large
 
 
-# ---------- Pure logic (no input, no printing) ----------
+# ---------- Parsers: turn raw values into valid ones, or raise ValueError ----------
 
-def parse_amount(text):
-    """Turn text into a valid money amount, or raise ValueError with a clear message."""
+def parse_amount(value):
+    """Return a valid money amount (rounded to 2 decimals), or raise ValueError."""
     try:
-        amount = float(text)
-    except ValueError:
+        amount = float(value)
+    except (ValueError, TypeError):
         raise ValueError("Please enter a valid number.") from None
 
     if not math.isfinite(amount):
@@ -47,10 +50,10 @@ def parse_amount(text):
     return amount
 
 
-def parse_date(text):
-    """Validate a YYYY-MM-DD date and return it as a clean ISO string."""
+def parse_date(value):
+    """Return a clean YYYY-MM-DD string, or raise ValueError."""
     try:
-        parsed = datetime.strptime(text, "%Y-%m-%d").date()
+        parsed = datetime.strptime(str(value).strip(), "%Y-%m-%d").date()
     except ValueError:
         raise ValueError("Use the format YYYY-MM-DD, e.g. 2026-10-25.") from None
 
@@ -60,116 +63,188 @@ def parse_date(text):
     return parsed.isoformat()
 
 
-def classify_expense(amount):
-    """Return 'Small', 'Medium', or 'Large' based on the amount."""
-    if amount < SMALL_LIMIT:
-        return "Small"
-    elif amount < MEDIUM_LIMIT:
-        return "Medium"
-    else:
+def parse_date_or_today(value):
+    """Like parse_date, but an empty answer means today."""
+    if not str(value).strip():
+        return date.today().isoformat()
+    return parse_date(value)
+
+
+def parse_item(value):
+    """Return a cleaned item name, or raise ValueError if it is empty."""
+    item = str(value).strip().title()
+    if not item:
+        raise ValueError("Item cannot be empty.")
+    return item
+
+
+def parse_category(value):
+    """Return a cleaned category, or raise ValueError if it isn't allowed."""
+    category = str(value).strip().title()
+    if category not in BUDGET_LIMITS:
+        raise ValueError(f"Choose one of: {', '.join(sorted(BUDGET_LIMITS))}.")
+    return category
+
+
+# ---------- Class 1: one expense ----------
+
+class Expense:
+    """One validated expense. An invalid Expense can never be created."""
+
+    def __init__(self, date_text, item, category, amount):
+        # The constructor is the gatekeeper: every field is validated here.
+        self.date = parse_date(date_text)
+        self.item = parse_item(item)
+        self.category = parse_category(category)
+        self.amount = parse_amount(amount)
+
+    @property
+    def size(self):
+        """'Small', 'Medium' or 'Large'. Calculated from the amount, never stored."""
+        if self.amount < SMALL_LIMIT:
+            return "Small"
+        elif self.amount < MEDIUM_LIMIT:
+            return "Medium"
         return "Large"
 
+    def to_dict(self):
+        """Plain dictionary, used for saving to JSON and for the Pandas analysis."""
+        return {
+            "date": self.date,
+            "item": self.item,
+            "category": self.category,
+            "amount": self.amount,
+            "size": self.size,
+        }
 
-def calculate_category_totals(expenses):
-    """Return {category: total_spent}, including categories with no spending."""
-    totals = {category: 0.0 for category in BUDGET_LIMITS}
-    for expense in expenses:
-        totals[expense["category"]] += expense["amount"]
-    return totals
+    @classmethod
+    def from_dict(cls, record):
+        """Build an Expense from a loaded JSON record, or raise ValueError."""
+        if not isinstance(record, dict):
+            raise ValueError("Record must be a dictionary.")
+
+        amount = record.get("amount")
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)):
+            raise ValueError("Amount must be a number.")
+
+        item = record.get("item")
+        category = record.get("category")
+        if not isinstance(item, str) or not isinstance(category, str):
+            raise ValueError("Item and category must be text.")
+
+        raw_date = record.get("date")
+        if raw_date is None:
+            # Saved before dates existed (Module 3 step 4): use today's date.
+            raw_date = date.today().isoformat()
+        elif not isinstance(raw_date, str):
+            raise ValueError("Date must be text.")
+
+        return cls(raw_date, item, category, amount)
+
+    def __str__(self):
+        """Friendly text, used by print()."""
+        return f"{self.date}  {self.item} ({self.category}): ₱{self.amount:,.2f}"
+
+    def __repr__(self):
+        """Developer text, shown in the Python shell and in error messages."""
+        return (f"Expense(date={self.date!r}, item={self.item!r}, "
+                f"category={self.category!r}, amount={self.amount!r})")
 
 
-def clean_record(record):
-    """Return a cleaned expense dict from loaded data, or None if it's invalid."""
-    if not isinstance(record, dict):
-        return None
+# ---------- Class 2: the collection ----------
 
-    item = record.get("item")
-    category = record.get("category")
-    amount = record.get("amount")
-    raw_date = record.get("date")
+class ExpenseTracker:
+    """Holds all expenses and knows how to load, save, total and check budgets."""
 
-    if not isinstance(item, str) or not item.strip():
-        return None
-    if not isinstance(category, str) or category not in BUDGET_LIMITS:
-        return None
-    if isinstance(amount, bool) or not isinstance(amount, (int, float)):
-        return None
-    if not math.isfinite(amount):
-        return None
+    def __init__(self, filename):
+        self.filename = filename
+        self.expenses = []     # a list of Expense objects (composition)
+        self.skipped = 0       # invalid records found while loading
 
-    amount = round(float(amount), 2)
-    if amount <= 0:
-        return None
+    def __len__(self):
+        return len(self.expenses)
 
-    if raw_date is None:
-        # Record saved before dates existed (Module 3): use today's date.
-        date_text = date.today().isoformat()
-    elif isinstance(raw_date, str):
+    # --- file handling ---
+
+    def load(self):
+        """Load expenses from the JSON file, skipping invalid records."""
+        self.expenses = []
+        self.skipped = 0
+
         try:
-            date_text = parse_date(raw_date)
-        except ValueError:
-            return None
-    else:
-        return None
+            with open(self.filename, encoding="utf-8") as file:
+                data = json.load(file)
+        except FileNotFoundError:
+            return  # first run: no file yet, which is normal
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            self._keep_corrupt_copy()
+            return
+        except OSError as error:
+            print(f"Warning: could not open {self.filename} ({error}).")
+            return
 
-    return {
-        "date": date_text,
-        "item": item.strip().title(),
-        "category": category,
-        "amount": amount,
-        "size": classify_expense(amount),
-    }
+        if not isinstance(data, list):
+            self._keep_corrupt_copy()
+            return
 
+        for record in data:
+            try:
+                self.expenses.append(Expense.from_dict(record))
+            except ValueError:
+                self.skipped += 1
 
-# ---------- File handling ----------
+    def save(self):
+        """Save all expenses to the JSON file. Returns True on success."""
+        try:
+            with open(self.filename, "w", encoding="utf-8") as file:
+                json.dump(self.to_dicts(), file, indent=2)
+        except OSError as error:
+            print(f"Warning: could not save your data ({error}).")
+            return False
+        return True
 
-def backup_corrupt_file(filename):
-    """Move an unreadable data file aside so we never destroy the user's data."""
-    backup = filename + ".corrupt"
-    os.replace(filename, backup)
-    print(f"Warning: {filename} could not be read.")
-    print(f"A copy was kept as {backup}. Starting with an empty list.")
+    def _keep_corrupt_copy(self):
+        """Move an unreadable file aside so we never destroy the user's data.
 
+        The leading underscore is a convention: "internal, not for outside use".
+        """
+        backup = self.filename + ".corrupt"
+        os.replace(self.filename, backup)
+        print(f"Warning: {self.filename} could not be read.")
+        print(f"A copy was kept as {backup}. Starting with an empty list.")
 
-def load_expenses(filename):
-    """Load expenses from JSON. Returns (expenses, number_of_skipped_records)."""
-    try:
-        with open(filename, encoding="utf-8") as file:
-            data = json.load(file)
-    except FileNotFoundError:
-        return [], 0  # first run: no file yet, which is normal
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        backup_corrupt_file(filename)
-        return [], 0
-    except OSError as error:
-        print(f"Warning: could not open {filename} ({error}).")
-        return [], 0
+    # --- adding and converting ---
 
-    if not isinstance(data, list):
-        backup_corrupt_file(filename)
-        return [], 0
+    def add(self, expense):
+        """Add an Expense and save to disk."""
+        self.expenses.append(expense)
+        return self.save()
 
-    expenses = []
-    skipped = 0
-    for record in data:
-        cleaned = clean_record(record)
-        if cleaned is None:
-            skipped += 1
-        else:
-            expenses.append(cleaned)
+    def to_dicts(self):
+        """All expenses as a list of dictionaries."""
+        return [expense.to_dict() for expense in self.expenses]
 
-    return expenses, skipped
+    # --- calculations ---
 
+    def total_spent(self):
+        """Total of every expense."""
+        return sum(expense.amount for expense in self.expenses)
 
-def save_expenses(expenses, filename):
-    """Save expenses to JSON. Returns True on success, False on failure."""
-    try:
-        with open(filename, "w", encoding="utf-8") as file:
-            json.dump(expenses, file, indent=2)
-    except OSError as error:
-        print(f"Warning: could not save your data ({error}).")
-        return False
-    return True
+    def totals_by_category(self):
+        """Return {category: total_spent}, including categories with no spending."""
+        totals = {category: 0.0 for category in BUDGET_LIMITS}
+        for expense in self.expenses:
+            totals[expense.category] += expense.amount
+        return totals
+
+    def amount_over_budget(self, category):
+        """How far a category is over its limit (0 if it isn't over)."""
+        spent = self.totals_by_category()[category]
+        return max(0.0, spent - BUDGET_LIMITS[category])
+
+    def is_over_budget(self, category):
+        """True if the category's total is above its budget limit."""
+        return self.amount_over_budget(category) > 0
 
 
 # ---------- Display helpers ----------
@@ -200,84 +275,57 @@ def show_menu():
 def display_expense(expense):
     """Display the details of a single expense."""
     print_header("EXPENSE DETAILS", 45)
-    print(f"{'Date':<15}: {expense['date']}")
-    print(f"{'Item':<15}: {expense['item']}")
-    print(f"{'Category':<15}: {expense['category']}")
-    print(f"{'Amount':<15}: {peso(expense['amount'])}")
-    print(f"{'Size':<15}: {expense['size']}")
+    print(f"{'Date':<15}: {expense.date}")
+    print(f"{'Item':<15}: {expense.item}")
+    print(f"{'Category':<15}: {expense.category}")
+    print(f"{'Amount':<15}: {peso(expense.amount)}")
+    print(f"{'Size':<15}: {expense.size}")
     print("=" * 45)
 
 
 # ---------- Input ----------
 
-def get_expense():
-    """Ask the user for an expense, retrying each field until it's valid."""
-    while True:
-        text = input("Enter the date (YYYY-MM-DD, or press Enter for today): ").strip()
-        if not text:
-            date_text = date.today().isoformat()
-            break
-        try:
-            date_text = parse_date(text)
-        except ValueError as error:
-            print(f"Error! {error}\n")
-        else:
-            break
+def ask(prompt, parser):
+    """Keep asking until `parser` accepts the answer.
 
-    while True:
-        item = input("Enter the item: ").strip().title()
-        if item:
-            break
-        print("Error! Item cannot be empty.\n")
-
-    while True:
-        print("\nAllowed categories:", ", ".join(sorted(BUDGET_LIMITS)))
-        category = input("Enter the category: ").strip().title()
-        if category in BUDGET_LIMITS:
-            break
-        print("Error! Please choose a valid category.")
-
+    `parser` is a function (parse_amount, parse_item, ...) passed in as an
+    argument. It returns the clean value or raises ValueError.
+    """
     while True:
         try:
-            amount = parse_amount(input("Enter the amount (₱): ").strip())
+            return parser(input(prompt))
         except ValueError as error:
             print(f"Error! {error}\n")
-        else:
-            break
-
-    return {
-        "date": date_text,
-        "item": item,
-        "category": category,
-        "amount": amount,
-        "size": classify_expense(amount),
-    }
 
 
 # ---------- Menu actions ----------
 
-def add_expense(expenses):
-    """Get an expense, add it, save to disk, and warn if over budget."""
-    expense = get_expense()
-    expenses.append(expense)
-    save_expenses(expenses, DATA_FILE)
+def add_expense(tracker):
+    """Ask for an expense, build an Expense object, save it, warn if over budget."""
+    date_text = ask("Enter the date (YYYY-MM-DD, or press Enter for today): ",
+                    parse_date_or_today)
+    item = ask("Enter the item: ", parse_item)
+    print("\nAllowed categories:", ", ".join(sorted(BUDGET_LIMITS)))
+    category = ask("Enter the category: ", parse_category)
+    amount = ask("Enter the amount (₱): ", parse_amount)
+
+    expense = Expense(date_text, item, category, amount)
+    tracker.add(expense)
 
     print("\nExpense added successfully!")
     display_expense(expense)
 
-    category = expense["category"]
-    total = calculate_category_totals(expenses)[category]
-    if total > BUDGET_LIMITS[category]:
-        over = total - BUDGET_LIMITS[category]
-        print(f"WARNING: {category} is over budget by {peso(over)}!")
+    if tracker.is_over_budget(expense.category):
+        over = tracker.amount_over_budget(expense.category)
+        print(f"WARNING: {expense.category} is over budget by {peso(over)}!")
 
 
-def view_all_expenses(expenses):
+def view_all_expenses(tracker):
     """Display every expense in a table."""
     width = 75
     print_header("ALL EXPENSES", width)
 
-    if not expenses:
+    if len(tracker) == 0:
         print("No expenses recorded yet.")
         print("=" * width)
         return
@@ -285,48 +333,46 @@ def view_all_expenses(expenses):
     print(f"{'No.':<5}{'Date':<12}{'Item':<20}{'Category':<12}{'Size':<9}{'Amount':>17}")
     print("-" * width)
 
-    grand_total = 0
-    for number, expense in enumerate(expenses, start=1):
+    for number, expense in enumerate(tracker.expenses, start=1):
         print(
             f"{number:<5}"
-            f"{expense['date']:<12}"
-            f"{expense['item'][:18]:<20}"   # [:18] stops long names breaking the table
-            f"{expense['category']:<12}"
-            f"{expense['size']:<9}"
-            f"{peso(expense['amount']):>17}"
+            f"{expense.date:<12}"
+            f"{expense.item[:18]:<20}"   # [:18] stops long names breaking the table
+            f"{expense.category:<12}"
+            f"{expense.size:<9}"
+            f"{peso(expense.amount):>17}"
         )
-        grand_total += expense["amount"]
 
     print("-" * width)
-    print(f"{'TOTAL EXPENSES':<58}{peso(grand_total):>17}")
+    print(f"{'TOTAL EXPENSES':<58}{peso(tracker.total_spent()):>17}")
     print("=" * width)
 
 
-def show_category_totals(expenses):
+def show_category_totals(tracker):
     """Show spending per category next to its budget limit."""
     width = 50
-    totals = calculate_category_totals(expenses)
+    totals = tracker.totals_by_category()
 
     print_header("TOTALS PER CATEGORY", width)
     print(f"{'Category':<16}{'Total Spent':>17}{'Budget Limit':>17}")
     print("-" * width)
 
     for category, total in sorted(totals.items()):
-        budget = BUDGET_LIMITS[category]
-        print(f"{category:<16}{peso(total):>17}{peso(budget):>17}")
-        if total > budget:
-            print(f"  WARNING: {category} exceeded by {peso(total - budget)}!")
+        print(f"{category:<16}{peso(total):>17}{peso(BUDGET_LIMITS[category]):>17}")
+        if tracker.is_over_budget(category):
+            print(f"  WARNING: {category} exceeded by "
+                  f"{peso(tracker.amount_over_budget(category))}!")
 
     print("-" * width)
     print(
         f"{'TOTAL':<16}"
-        f"{peso(sum(totals.values())):>17}"
+        f"{peso(tracker.total_spent()):>17}"
         f"{peso(sum(BUDGET_LIMITS.values())):>17}"
     )
     print("=" * width)
 
 
-def analyze_spending(expenses):
+def analyze_spending(tracker):
     """Run the Pandas analysis. Imported here so the rest works without Pandas."""
     try:
         import analysis
@@ -335,19 +381,21 @@ def analyze_spending(expenses):
         print("Install them with:  pip install -r requirements.txt")
         return
 
-    analysis.run_analysis(expenses, BUDGET_LIMITS, CHART_FILE)
+    # analysis.py only sees plain dictionaries, never our classes.
+    analysis.run_analysis(tracker.to_dicts(), BUDGET_LIMITS, CHART_FILE)
 
 
 # ---------- Main program ----------
 
 def main():
     """Run the menu-driven expense tracker."""
-    expenses, skipped = load_expenses(DATA_FILE)
+    tracker = ExpenseTracker(DATA_FILE)
+    tracker.load()
 
-    if expenses:
-        print(f"Loaded {len(expenses)} saved expense(s).")
-    if skipped:
-        print(f"Skipped {skipped} invalid record(s) in {DATA_FILE}.")
+    if len(tracker) > 0:
+        print(f"Loaded {len(tracker)} saved expense(s).")
+    if tracker.skipped:
+        print(f"Skipped {tracker.skipped} invalid record(s) in {DATA_FILE}.")
 
     try:
         while True:
@@ -355,13 +403,13 @@ def main():
             choice = input("Enter option [1-5]: ").strip()
 
             if choice == "1":
-                add_expense(expenses)
+                add_expense(tracker)
             elif choice == "2":
-                view_all_expenses(expenses)
+                view_all_expenses(tracker)
             elif choice == "3":
-                show_category_totals(expenses)
+                show_category_totals(tracker)
             elif choice == "4":
-                analyze_spending(expenses)
+                analyze_spending(tracker)
             elif choice == "5":
                 print("\nThank you for using Expense Tracker! Goodbye!")
                 break
