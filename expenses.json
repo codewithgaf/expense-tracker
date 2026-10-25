@@ -1,0 +1,156 @@
+[
+  {
+    "date": "2026-09-28",
+    "item": "Groceries",
+    "category": "Food",
+    "amount": 850.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-09-29",
+    "item": "Jeepney Fare",
+    "category": "Transport",
+    "amount": 40.0,
+    "size": "Small"
+  },
+  {
+    "date": "2026-09-30",
+    "item": "Lunch",
+    "category": "Food",
+    "amount": 120.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-10-01",
+    "item": "Notebook",
+    "category": "School",
+    "amount": 65.0,
+    "size": "Small"
+  },
+  {
+    "date": "2026-10-02",
+    "item": "Electricity Bill",
+    "category": "Bills",
+    "amount": 2400.0,
+    "size": "Large"
+  },
+  {
+    "date": "2026-10-03",
+    "item": "Dinner",
+    "category": "Food",
+    "amount": 310.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-10-05",
+    "item": "Jeepney Fare",
+    "category": "Transport",
+    "amount": 40.0,
+    "size": "Small"
+  },
+  {
+    "date": "2026-10-06",
+    "item": "Groceries",
+    "category": "Food",
+    "amount": 920.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-10-07",
+    "item": "Textbook",
+    "category": "School",
+    "amount": 1250.0,
+    "size": "Large"
+  },
+  {
+    "date": "2026-10-09",
+    "item": "Internet Bill",
+    "category": "Bills",
+    "amount": 1500.0,
+    "size": "Large"
+  },
+  {
+    "date": "2026-10-10",
+    "item": "Lunch",
+    "category": "Food",
+    "amount": 135.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-10-12",
+    "item": "Tricycle Fare",
+    "category": "Transport",
+    "amount": 60.0,
+    "size": "Small"
+  },
+  {
+    "date": "2026-10-13",
+    "item": "Movie",
+    "category": "Other",
+    "amount": 350.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-10-14",
+    "item": "Groceries",
+    "category": "Food",
+    "amount": 780.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-10-16",
+    "item": "Water Bill",
+    "category": "Bills",
+    "amount": 450.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-10-17",
+    "item": "Lunch",
+    "category": "Food",
+    "amount": 150.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-10-19",
+    "item": "Printer Ink",
+    "category": "School",
+    "amount": 480.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-10-20",
+    "item": "Groceries",
+    "category": "Food",
+    "amount": 880.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-10-21",
+    "item": "Bus Fare",
+    "category": "Transport",
+    "amount": 95.0,
+    "size": "Small"
+  },
+  {
+    "date": "2026-10-23",
+    "item": "Phone Load",
+    "category": "Bills",
+    "amount": 300.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-10-24",
+    "item": "Dinner",
+    "category": "Food",
+    "amount": 420.0,
+    "size": "Medium"
+  },
+  {
+    "date": "2026-10-25",
+    "item": "Jeep Fare",
+    "category": "Transport",
+    "amount": 32.0,
+    "size": "Small"
+  }
+]

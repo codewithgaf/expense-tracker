@@ -1,16 +1,18 @@
-"""Expense Tracker - Module 3 (Steps 3-4)
+"""Expense Tracker - Module 4
 
-Covers: functions, input validation, exception handling, and saving
-expenses to a JSON file so they survive between runs.
+Adds dates to expenses and an "Analyze Spending" option that uses
+Pandas, NumPy and Matplotlib (see analysis.py).
 """
 
 import json
 import math
 import os
+from datetime import date, datetime
 
 # ---------- Configuration (constants) ----------
 
 DATA_FILE = "expenses.json"
+CHART_FILE = "spending_chart.png"
 
 # Single source of truth: the keys are the allowed categories.
 BUDGET_LIMITS = {
@@ -45,6 +47,19 @@ def parse_amount(text):
     return amount
 
 
+def parse_date(text):
+    """Validate a YYYY-MM-DD date and return it as a clean ISO string."""
+    try:
+        parsed = datetime.strptime(text, "%Y-%m-%d").date()
+    except ValueError:
+        raise ValueError("Use the format YYYY-MM-DD, e.g. 2026-10-25.") from None
+
+    if parsed > date.today():
+        raise ValueError("Date cannot be in the future.")
+
+    return parsed.isoformat()
+
+
 def classify_expense(amount):
     """Return 'Small', 'Medium', or 'Large' based on the amount."""
     if amount < SMALL_LIMIT:
@@ -71,6 +86,7 @@ def clean_record(record):
     item = record.get("item")
     category = record.get("category")
     amount = record.get("amount")
+    raw_date = record.get("date")
 
     if not isinstance(item, str) or not item.strip():
         return None
@@ -85,7 +101,19 @@ def clean_record(record):
     if amount <= 0:
         return None
 
+    if raw_date is None:
+        # Record saved before dates existed (Module 3): use today's date.
+        date_text = date.today().isoformat()
+    elif isinstance(raw_date, str):
+        try:
+            date_text = parse_date(raw_date)
+        except ValueError:
+            return None
+    else:
+        return None
+
     return {
+        "date": date_text,
         "item": item.strip().title(),
         "category": category,
         "amount": amount,
@@ -164,16 +192,18 @@ def show_menu():
     print("[1] Add Expense")
     print("[2] View All Expenses")
     print("[3] Totals per Category")
-    print("[4] Quit")
+    print("[4] Analyze Spending (Pandas)")
+    print("[5] Quit")
     print("=" * 45)
 
 
 def display_expense(expense):
     """Display the details of a single expense."""
     print_header("EXPENSE DETAILS", 45)
+    print(f"{'Date':<15}: {expense['date']}")
     print(f"{'Item':<15}: {expense['item']}")
     print(f"{'Category':<15}: {expense['category']}")
-    print(f"{'Amount':<15}: ₱{expense['amount']:,.2f}")
+    print(f"{'Amount':<15}: {peso(expense['amount'])}")
     print(f"{'Size':<15}: {expense['size']}")
     print("=" * 45)
 
@@ -182,6 +212,18 @@ def display_expense(expense):
 
 def get_expense():
     """Ask the user for an expense, retrying each field until it's valid."""
+    while True:
+        text = input("Enter the date (YYYY-MM-DD, or press Enter for today): ").strip()
+        if not text:
+            date_text = date.today().isoformat()
+            break
+        try:
+            date_text = parse_date(text)
+        except ValueError as error:
+            print(f"Error! {error}\n")
+        else:
+            break
+
     while True:
         item = input("Enter the item: ").strip().title()
         if item:
@@ -204,6 +246,7 @@ def get_expense():
             break
 
     return {
+        "date": date_text,
         "item": item,
         "category": category,
         "amount": amount,
@@ -226,12 +269,12 @@ def add_expense(expenses):
     total = calculate_category_totals(expenses)[category]
     if total > BUDGET_LIMITS[category]:
         over = total - BUDGET_LIMITS[category]
-        print(f"WARNING: {category} is over budget by ₱{over:,.2f}!")
+        print(f"WARNING: {category} is over budget by {peso(over)}!")
 
 
 def view_all_expenses(expenses):
     """Display every expense in a table."""
-    width = 65
+    width = 75
     print_header("ALL EXPENSES", width)
 
     if not expenses:
@@ -239,14 +282,15 @@ def view_all_expenses(expenses):
         print("=" * width)
         return
 
-    print(f"{'No.':<5}{'Item':<22}{'Category':<12}{'Size':<9}{'Amount':>17}")
+    print(f"{'No.':<5}{'Date':<12}{'Item':<20}{'Category':<12}{'Size':<9}{'Amount':>17}")
     print("-" * width)
 
     grand_total = 0
     for number, expense in enumerate(expenses, start=1):
         print(
             f"{number:<5}"
-            f"{expense['item'][:20]:<22}"   # [:20] stops long names breaking the table
+            f"{expense['date']:<12}"
+            f"{expense['item'][:18]:<20}"   # [:18] stops long names breaking the table
             f"{expense['category']:<12}"
             f"{expense['size']:<9}"
             f"{peso(expense['amount']):>17}"
@@ -254,7 +298,7 @@ def view_all_expenses(expenses):
         grand_total += expense["amount"]
 
     print("-" * width)
-    print(f"{'TOTAL EXPENSES':<48}{peso(grand_total):>17}")
+    print(f"{'TOTAL EXPENSES':<58}{peso(grand_total):>17}")
     print("=" * width)
 
 
@@ -271,7 +315,7 @@ def show_category_totals(expenses):
         budget = BUDGET_LIMITS[category]
         print(f"{category:<16}{peso(total):>17}{peso(budget):>17}")
         if total > budget:
-            print(f"  WARNING: {category} exceeded by ₱{total - budget:,.2f}!")
+            print(f"  WARNING: {category} exceeded by {peso(total - budget)}!")
 
     print("-" * width)
     print(
@@ -280,6 +324,18 @@ def show_category_totals(expenses):
         f"{peso(sum(BUDGET_LIMITS.values())):>17}"
     )
     print("=" * width)
+
+
+def analyze_spending(expenses):
+    """Run the Pandas analysis. Imported here so the rest works without Pandas."""
+    try:
+        import analysis
+    except ImportError:
+        print("\nThis feature needs pandas, numpy and matplotlib.")
+        print("Install them with:  pip install -r requirements.txt")
+        return
+
+    analysis.run_analysis(expenses, BUDGET_LIMITS, CHART_FILE)
 
 
 # ---------- Main program ----------
@@ -296,7 +352,7 @@ def main():
     try:
         while True:
             show_menu()
-            choice = input("Enter option [1-4]: ").strip()
+            choice = input("Enter option [1-5]: ").strip()
 
             if choice == "1":
                 add_expense(expenses)
@@ -305,10 +361,12 @@ def main():
             elif choice == "3":
                 show_category_totals(expenses)
             elif choice == "4":
+                analyze_spending(expenses)
+            elif choice == "5":
                 print("\nThank you for using Expense Tracker! Goodbye!")
                 break
             else:
-                print("\nError! Please enter a number from 1 to 4.")
+                print("\nError! Please enter a number from 1 to 5.")
     except (KeyboardInterrupt, EOFError):
         # Ctrl+C or Ctrl+D: exit politely (data is saved after every add)
         print("\n\nExiting. Your expenses are already saved. Goodbye!")
